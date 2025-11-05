@@ -4,12 +4,17 @@ import pandas as pd
 import datetime
 import requests
 import plotly.graph_objects as go
+import os
+from openai import OpenAI
 
 # --------------------
-# App Title
+# Setup
 # --------------------
 st.set_page_config(page_title="Growlio 📈", layout="wide")
 st.title("📊 Growlio - Investment Learning App")
+
+# Initialize OpenAI client
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # --------------------
 # Sidebar Inputs
@@ -19,11 +24,10 @@ tickers = st.sidebar.text_input("Enter Stock Tickers (comma separated)", "AAPL, 
 start = st.sidebar.date_input("Start Date", datetime.date(2023, 1, 1))
 end = st.sidebar.date_input("End Date", datetime.date.today())
 
-# Split and clean tickers
 tickers = [t.strip().upper() for t in tickers.split(",") if t.strip()]
 
 # --------------------
-# Download Data
+# Data Loader
 # --------------------
 @st.cache_data
 def load_data(tickers, start, end):
@@ -41,7 +45,7 @@ if data is None or data.empty:
     st.stop()
 
 # --------------------
-# Metrics
+# Stock Metrics
 # --------------------
 st.subheader("📈 Stock Metrics")
 cols = st.columns(len(tickers))
@@ -56,7 +60,7 @@ for i, ticker in enumerate(tickers):
         cols[i].warning(f"No close price data for {ticker}")
 
 # --------------------
-# Stock Comparison Chart
+# Comparison Chart
 # --------------------
 st.subheader("📉 Stock Price Comparison")
 
@@ -82,7 +86,7 @@ st.plotly_chart(fig, use_container_width=True)
 st.subheader("🔍 Detailed Analysis per Stock")
 
 for ticker in tickers:
-    st.markdown(f"### {ticker}")
+    st.markdown(f"## {ticker}")
 
     try:
         df = data[ticker].copy()
@@ -90,11 +94,11 @@ for ticker in tickers:
         df["200MA"] = df["Close"].rolling(window=200).mean()
         df["Volatility"] = df["Close"].rolling(window=20).std()
 
-        # Buy signals (when MA50 crosses above MA200)
+        # Buy signals (MA50 crosses above MA200)
         df["Signal"] = (df["50MA"] > df["200MA"]) & (df["50MA"].shift(1) <= df["200MA"].shift(1))
         buy_signals = df[df["Signal"]]
 
-        # Candlestick + Moving Averages + Buy Signals
+        # Chart: Candlestick + Moving Averages + Buy Signals
         fig2 = go.Figure(data=[go.Candlestick(
             x=df.index,
             open=df["Open"],
@@ -115,37 +119,68 @@ for ticker in tickers:
         fig2.update_layout(title=f"{ticker} Price with MAs & Buy Signals")
         st.plotly_chart(fig2, use_container_width=True)
 
-        # Volatility
+        # Volatility chart
         st.subheader(f"📉 {ticker} Volatility")
         vol_fig = go.Figure()
         vol_fig.add_trace(go.Scatter(x=df.index, y=df["Volatility"], mode="lines", name="Volatility"))
         vol_fig.update_layout(title=f"{ticker} 20-Day Rolling Volatility")
         st.plotly_chart(vol_fig, use_container_width=True)
 
-    except Exception as e:
-        st.warning(f"Could not process {ticker}: {e}")
+        # --------------------
+        # News Section
+        # --------------------
+        st.subheader(f"📰 {ticker} News & Insights")
 
-# --------------------
-# News Section
-# --------------------
-st.subheader("📰 Stock News & Articles")
+        def fetch_news(ticker):
+            try:
+                url = f"https://query1.finance.yahoo.com/v1/finance/search?q={ticker}"
+                response = requests.get(url, timeout=5).json()
+                return response.get("news", [])[:5]
+            except Exception:
+                return []
 
-def fetch_news(ticker):
-    try:
-        url = f"https://query1.finance.yahoo.com/v1/finance/search?q={ticker}"
-        response = requests.get(url, timeout=5).json()
-        news_items = response.get("news", [])
-        return news_items[:5]
-    except Exception:
-        return []
+        news_list = fetch_news(ticker)
+        if not news_list:
+            st.write("No news found.")
+            continue
 
-for ticker in tickers:
-    st.markdown(f"#### {ticker} News")
-    news_list = fetch_news(ticker)
-    if not news_list:
-        st.write("No news found.")
-    else:
+        headlines = []
         for item in news_list:
             title = item.get("title", "No title")
             link = item.get("link", "#")
             st.markdown(f"- [{title}]({link})")
+            headlines.append(title)
+
+        # --------------------
+        # AI Summary: Why Did This Stock Move?
+        # --------------------
+        st.subheader(f"🤖 Why Did {ticker} Move?")
+
+        if len(headlines) > 0:
+            try:
+                combined_news = " | ".join(headlines)
+                prompt = (
+                    f"Summarize in plain English why the stock {ticker} might have moved today, "
+                    f"based on these news headlines: {combined_news}. "
+                    f"Keep it under 3 sentences, and make it understandable for a beginner investor."
+                )
+
+                response = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": "You are a financial analyst who explains simply."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7,
+                )
+
+                summary = response.choices[0].message.content.strip()
+                st.info(summary)
+            except Exception as e:
+                st.warning("Could not generate AI summary. Check your API key or connection.")
+        else:
+            st.write("No headlines available to summarize.")
+
+    except Exception as e:
+        st.warning(f"Could not process {ticker}: {e}")
+
