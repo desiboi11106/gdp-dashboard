@@ -2,7 +2,6 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import datetime
-import requests
 import plotly.graph_objects as go
 import os
 import time
@@ -18,14 +17,8 @@ st.title("📊 Growlio - Investment Learning App")
 # API Keys
 # --------------------
 openai_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
-fmp_key = os.getenv("FMP_API_KEY") or st.secrets.get("FMP_API_KEY")
-
 if not openai_key:
     st.error("❌ Missing OpenAI API key. Add it in Streamlit Secrets as OPENAI_API_KEY.")
-    st.stop()
-
-if not fmp_key:
-    st.error("❌ Missing FMP API key. Add it in Streamlit Secrets as FMP_API_KEY.")
     st.stop()
 
 client = OpenAI(api_key=openai_key)
@@ -90,20 +83,22 @@ fig.update_layout(title="Stock Prices", xaxis_title="Date", yaxis_title="Price (
 st.plotly_chart(fig, use_container_width=True)
 
 # --------------------
-# Detailed Analysis
+# Detailed Analysis per Stock
 # --------------------
 st.subheader("🔍 Detailed Analysis per Stock")
 
-def fetch_news_fmp(ticker, api_key):
-    """Fetch latest stock news from FMP"""
+def fetch_news_from_sheet(ticker, sheet_url):
+    """Fetch matching news articles from Google Sheet"""
     try:
-        url = f"https://financialmodelingprep.com/api/v3/stock_news?tickers={ticker}&limit=5&apikey={api_key}"
-        response = requests.get(url, timeout=5)
-        data = response.json()
-        return data[:5]
+        df = pd.read_csv(sheet_url)
+        df = df[df['ticker'].str.upper() == ticker.upper()]
+        return df.to_dict('records')
     except Exception as e:
-        st.warning(f"News fetch error for {ticker}: {e}")
+        st.warning(f"Error fetching sheet data: {e}")
         return []
+
+# ✅ Google Sheet export link (must end with export?format=csv)
+SHEET_URL = "https://docs.google.com/spreadsheets/d/10zj6tfkdwxNH9lPDeAx5QdM-vcx3G_FsICpC6Us8dx8/export?format=csv"
 
 for ticker in tickers:
     st.markdown(f"## {ticker}")
@@ -137,48 +132,40 @@ for ticker in tickers:
         vol_fig.update_layout(title=f"{ticker} 20-Day Rolling Volatility")
         st.plotly_chart(vol_fig, use_container_width=True)
 
-        # --------------------
-        # News + AI Explanation
-        # --------------------
-        st.subheader(f"📰 {ticker} News & Learning Insights")
+        # 📰 News & Learning Insights
+        st.subheader(f"📰 {ticker} News & Insights (From Sheet)")
+        articles = fetch_news_from_sheet(ticker, SHEET_URL)
 
-        news_items = fetch_news_fmp(ticker, fmp_key)
-        if not news_items:
-            st.write("No news found.")
+        if not articles:
+            st.write("No articles found for this stock yet.")
             continue
 
         headlines = []
-        for item in news_items:
-            title = item.get("title", "No title")
-            url = item.get("url", "#")
-            st.markdown(f"- [{title}]({url})")
-            headlines.append(title)
+        for a in articles:
+            st.markdown(f"- [{a['title']}]({a['url']}) ({a['date']})")
+            headlines.append(a['title'])
 
-        combined_news = " | ".join(headlines)
+        # AI Summary
         st.subheader(f"🤖 Why Did {ticker} Move?")
+        combined = " | ".join(headlines)
         prompt = f"""
-        You are a financial educator for beginner investors.
-        Explain in plain English why {ticker} might have moved today, using these headlines:
-        {combined_news}
-        Then explain the underlying principle (like earnings, guidance, inflation, etc.)
-        End with a one-sentence takeaway starting with 'Lesson:'.
+        You are a finance educator explaining to new investors.
+        Based on these news headlines for {ticker}, explain:
+        1. Why this stock likely moved.
+        2. What concept it illustrates (earnings, inflation, sentiment, etc.).
+        Then give a 'Lesson:' line in one sentence.
+        Headlines: {combined}
         """
 
-        try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": "You explain financial moves clearly and concisely."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-            )
-            summary = response.choices[0].message.content.strip()
-            st.info(summary)
-        except Exception as e:
-            st.warning(f"AI summary failed: {e}")
-
-        time.sleep(1)  # avoid API rate limits
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You explain finance clearly and simply."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+        )
+        st.info(response.choices[0].message.content.strip())
 
     except Exception as e:
         st.warning(f"Could not process {ticker}: {e}")
