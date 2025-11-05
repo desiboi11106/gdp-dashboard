@@ -13,11 +13,17 @@ from openai import OpenAI
 st.set_page_config(page_title="Growlio 📈", layout="wide")
 st.title("📊 Growlio - Investment Learning App")
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 # --------------------
-# Sidebar Inputs
+# OpenAI Client Setup (Fixed)
+# --------------------
+api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+
+if not api_key:
+    st.error("❌ OpenAI API key not found. Please set it in Streamlit Secrets or environment variables.")
+    st.stop()
+
+client = OpenAI(api_key=api_key)
+
 # --------------------
 st.sidebar.header("Stock Settings")
 tickers = st.sidebar.text_input("Enter Stock Tickers (comma separated)", "AAPL, MSFT, TSLA")
