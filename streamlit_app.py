@@ -87,29 +87,28 @@ st.plotly_chart(fig, use_container_width=True)
 # --------------------
 # Google Sheets Connection (via gspread)
 # --------------------
-def fetch_news_from_sheet(ticker):
-    """Fetch matching news articles for a stock from Google Sheet via gspread"""
-    try:
-        # Authenticate with Google Sheets using Streamlit Secrets
-        creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"])
-        client = gspread.authorize(creds)
-        
-        # Open your specific Google Sheet by URL
-        sheet = client.open_by_url(
-            "https://docs.google.com/spreadsheets/d/10zj6tfkdwxNH9lPDeAx5QdM-vcx3G_FsICpC6Us8dx8/edit#gid=0"
-        )
-        worksheet = sheet.sheet1  # you can change this if your data is in another tab
-        
-        # Read all rows into a DataFrame
-        records = worksheet.get_all_records()
-        df = pd.DataFrame(records)
+import gspread
+from google.oauth2.service_account import Credentials
 
-        # Filter by ticker
-        df = df[df["ticker"].str.upper() == ticker.upper()]
-        return df.to_dict("records")
+def fetch_news_from_sheet(ticker):
+    try:
+        # Load service account info from Streamlit secrets
+        creds = Credentials.from_service_account_info(
+            st.secrets["gcp_service_account"],
+            scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"],
+        )
+
+        client = gspread.authorize(creds)
+        sheet = client.open_by_key("10zj6tfkdwxNH9lPDeAx5QdM-vcx3G_FsICpC6Us8dx8")
+        worksheet = sheet.sheet1  # or use .worksheet("Sheet1") if named
+        data = worksheet.get_all_records()
+        df = pd.DataFrame(data)
+
+        df = df[df['ticker'].str.upper() == ticker.upper()]
+        return df.to_dict('records')
 
     except Exception as e:
-        st.warning(f"❌ Error fetching sheet data: {e}")
+        st.warning(f"Error fetching sheet data: {e}")
         return []
 
 # --------------------
