@@ -6,6 +6,8 @@ import plotly.graph_objects as go
 import os
 import time
 from openai import OpenAI
+import gspread
+from google.oauth2.service_account import Credentials
 
 # --------------------
 # App Setup
@@ -23,13 +25,6 @@ if not openai_key:
 
 client = OpenAI(api_key=openai_key)
 
-# ✅ Quick test to confirm secrets are loaded
-st.write("✅ OpenAI Key Found:", bool(st.secrets.get("OPENAI_API_KEY")))
-
-if "gcp_service_account" in st.secrets:
-    st.write("✅ Google Service Account Email:", st.secrets["gcp_service_account"]["client_email"])
-else:
-    st.warning("⚠️ Google Service Account not found in secrets.")
 # --------------------
 # Sidebar Inputs
 # --------------------
@@ -90,22 +85,37 @@ fig.update_layout(title="Stock Prices", xaxis_title="Date", yaxis_title="Price (
 st.plotly_chart(fig, use_container_width=True)
 
 # --------------------
+# Google Sheets Connection (via gspread)
+# --------------------
+def fetch_news_from_sheet(ticker):
+    """Fetch matching news articles for a stock from Google Sheet via gspread"""
+    try:
+        # Authenticate with Google Sheets using Streamlit Secrets
+        creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"])
+        client = gspread.authorize(creds)
+        
+        # Open your specific Google Sheet by URL
+        sheet = client.open_by_url(
+            "https://docs.google.com/spreadsheets/d/10zj6tfkdwxNH9lPDeAx5QdM-vcx3G_FsICpC6Us8dx8/edit#gid=0"
+        )
+        worksheet = sheet.sheet1  # you can change this if your data is in another tab
+        
+        # Read all rows into a DataFrame
+        records = worksheet.get_all_records()
+        df = pd.DataFrame(records)
+
+        # Filter by ticker
+        df = df[df["ticker"].str.upper() == ticker.upper()]
+        return df.to_dict("records")
+
+    except Exception as e:
+        st.warning(f"❌ Error fetching sheet data: {e}")
+        return []
+
+# --------------------
 # Detailed Analysis per Stock
 # --------------------
 st.subheader("🔍 Detailed Analysis per Stock")
-
-def fetch_news_from_sheet(ticker, sheet_url):
-    """Fetch matching news articles from Google Sheet"""
-    try:
-        df = pd.read_csv(sheet_url)
-        df = df[df['ticker'].str.upper() == ticker.upper()]
-        return df.to_dict('records')
-    except Exception as e:
-        st.warning(f"Error fetching sheet data: {e}")
-        return []
-
-# ✅ Google Sheet export link (must end with export?format=csv)
-SHEET_URL = "https://docs.google.com/spreadsheets/d/10zj6tfkdwxNH9lPDeAx5QdM-vcx3G_FsICpC6Us8dx8/export?format=csv"
 
 for ticker in tickers:
     st.markdown(f"## {ticker}")
@@ -140,8 +150,8 @@ for ticker in tickers:
         st.plotly_chart(vol_fig, use_container_width=True)
 
         # 📰 News & Learning Insights
-        st.subheader(f"📰 {ticker} News & Insights (From Sheet)")
-        articles = fetch_news_from_sheet(ticker, SHEET_URL)
+        st.subheader(f"📰 {ticker} News & Insights (From Google Sheet)")
+        articles = fetch_news_from_sheet(ticker)
 
         if not articles:
             st.write("No articles found for this stock yet.")
@@ -152,7 +162,7 @@ for ticker in tickers:
             st.markdown(f"- [{a['title']}]({a['url']}) ({a['date']})")
             headlines.append(a['title'])
 
-        # AI Summary
+        # 🤖 AI Summary
         st.subheader(f"🤖 Why Did {ticker} Move?")
         combined = " | ".join(headlines)
         prompt = f"""
