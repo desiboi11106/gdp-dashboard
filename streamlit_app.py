@@ -23,6 +23,13 @@ if not openai_key:
 
 client = OpenAI(api_key=openai_key)
 
+# ✅ Quick test to confirm secrets are loaded
+st.write("✅ OpenAI Key Found:", bool(st.secrets.get("OPENAI_API_KEY")))
+
+if "gcp_service_account" in st.secrets:
+    st.write("✅ Google Service Account Email:", st.secrets["gcp_service_account"]["client_email"])
+else:
+    st.warning("⚠️ Google Service Account not found in secrets.")
 # --------------------
 # Sidebar Inputs
 # --------------------
