@@ -4,7 +4,6 @@ import pandas as pd
 import datetime
 import plotly.graph_objects as go
 import os
-import time
 from openai import OpenAI
 import gspread
 from google.oauth2.service_account import Credentials
@@ -19,6 +18,8 @@ st.title("📊 Growlio - Investment Learning App")
 # API Keys
 # --------------------
 openai_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+st.write("🔑 OpenAI key loaded:", "✅ Yes" if openai_key else "❌ No")
+
 if not openai_key:
     st.error("❌ Missing OpenAI API key. Add it in Streamlit Secrets as OPENAI_API_KEY.")
     st.stop()
@@ -85,28 +86,21 @@ fig.update_layout(title="Stock Prices", xaxis_title="Date", yaxis_title="Price (
 st.plotly_chart(fig, use_container_width=True)
 
 # --------------------
-# Google Sheets Connection (via gspread)
+# Google Sheets Connection
 # --------------------
-import gspread
-from google.oauth2.service_account import Credentials
-
 def fetch_news_from_sheet(ticker):
     try:
-        # Load service account info from Streamlit secrets
         creds = Credentials.from_service_account_info(
             st.secrets["gcp_service_account"],
             scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"],
         )
-
         client = gspread.authorize(creds)
         sheet = client.open_by_key("10zj6tfkdwxNH9lPDeAx5QdM-vcx3G_FsICpC6Us8dx8")
-        worksheet = sheet.sheet1  # or use .worksheet("Sheet1") if named
+        worksheet = sheet.sheet1
         data = worksheet.get_all_records()
         df = pd.DataFrame(data)
-
         df = df[df['ticker'].str.upper() == ticker.upper()]
         return df.to_dict('records')
-
     except Exception as e:
         st.warning(f"Error fetching sheet data: {e}")
         return []
@@ -141,7 +135,7 @@ for ticker in tickers:
         fig2.update_layout(title=f"{ticker} Price with MAs & Buy Signals")
         st.plotly_chart(fig2, use_container_width=True)
 
-        # Volatility
+        # Volatility chart
         st.subheader(f"📉 {ticker} Volatility")
         vol_fig = go.Figure()
         vol_fig.add_trace(go.Scatter(x=df.index, y=df["Volatility"], mode="lines", name="Volatility"))
@@ -151,7 +145,6 @@ for ticker in tickers:
         # 📰 News & Learning Insights
         st.subheader(f"📰 {ticker} News & Insights (From Google Sheet)")
         articles = fetch_news_from_sheet(ticker)
-
         if not articles:
             st.write("No articles found for this stock yet.")
             continue
