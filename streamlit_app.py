@@ -16,8 +16,7 @@ import seaborn as sns
 import sqlite3
 from datetime import datetime as dt, timedelta
 import io
-import requests
-from bs4 import BeautifulSoup
+import feedparser
 
 # --------------------
 # App Setup
@@ -52,36 +51,23 @@ def load_data(tickers, start, end):
         return None
 
 def fetch_news_auto(ticker):
-    """Fetch the latest stock news automatically from Google News."""
+    """Fetch latest stock-related news via Google News RSS feed (cloud-safe)."""
     try:
-        query = f"{ticker} stock"
-        url = f"https://news.google.com/search?q={query}&hl=en-US&gl=US&ceid=US:en"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(url, headers=headers)
-
-        if response.status_code != 200:
-            st.warning(f"⚠️ Couldn't fetch news for {ticker}.")
-            return []
-
-        soup = BeautifulSoup(response.text, "html.parser")
-        articles = soup.select("article")
+        query = f"{ticker}+stock"
+        rss_url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+        feed = feedparser.parse(rss_url)
 
         news_list = []
-        for article in articles[:8]:  # limit to 8 headlines
-            title_tag = article.select_one("h3")
-            if not title_tag:
-                continue
-            title = title_tag.text.strip()
-            link = title_tag.a["href"]
-            if link.startswith("./"):
-                link = "https://news.google.com" + link[1:]
-            date_tag = article.find("time")
-            date = date_tag["datetime"] if date_tag else "Unknown date"
-            news_list.append({"title": title, "url": link, "date": date})
+        for entry in feed.entries[:8]:
+            news_list.append({
+                "title": entry.title,
+                "url": entry.link,
+                "date": entry.published if "published" in entry else "Unknown date"
+            })
 
         return news_list
     except Exception as e:
-        st.warning(f"Error fetching news: {e}")
+        st.warning(f"Error fetching news (RSS): {e}")
         return []
 
 def update_google_sheet_with_news(sheet_key, tickers):
