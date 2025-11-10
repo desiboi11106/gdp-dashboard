@@ -11,4 +11,5 @@ google-auth
 google-auth-oauthlib
 google-auth-httplib2
 xlsxwriter
-xlsxwriter
+requests
+beautifulsoup4
