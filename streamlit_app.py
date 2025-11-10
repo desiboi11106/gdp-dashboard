@@ -212,8 +212,8 @@ def growlio_page():
     # --------------------
     st.subheader("🔍 Detailed Analysis per Stock")
     # Optional: refresh latest news and update Google Sheet
-if st.button("🔄 Refresh News for All Tickers"):
-    update_google_sheet_with_news(sheet_key, tickers)
+    if st.button("🔄 Refresh News for All Tickers"):
+        update_google_sheet_with_news(sheet_key, tickers)
 
     for ticker in tickers:
         st.markdown(f"## {ticker}")
