@@ -83,6 +83,45 @@ def fetch_news_auto(ticker):
     except Exception as e:
         st.warning(f"Error fetching news: {e}")
         return []
+
+def update_google_sheet_with_news(sheet_key, tickers):
+    """Fetch latest news for each ticker and update the Google Sheet."""
+    if not has_gcp:
+        st.warning("⚠️ Missing Google credentials in secrets — cannot update sheet.")
+        return
+    
+    try:
+        creds = Credentials.from_service_account_info(
+            st.secrets["gcp_service_account"],
+            scopes=["https://www.googleapis.com/auth/spreadsheets"]
+        )
+        client = gspread.authorize(creds)
+        sheet = client.open_by_key(sheet_key)
+        ws = sheet.sheet1
+
+        all_articles = []
+        for t in tickers:
+            news = fetch_news_auto(t)
+            for n in news:
+                all_articles.append({
+                    "ticker": t,
+                    "title": n["title"],
+                    "url": n["url"],
+                    "date": n["date"]
+                })
+
+        if not all_articles:
+            st.warning("No articles fetched.")
+            return
+
+        df = pd.DataFrame(all_articles)
+        ws.clear()
+        ws.update([df.columns.values.tolist()] + df.values.tolist())
+        st.success("✅ Google Sheet updated with latest news!")
+
+    except Exception as e:
+        st.error(f"Error updating sheet: {e}")
+
 def openai_summary_from_headlines(ticker, headlines, model="gpt-4o-mini"):
     if client is None:
         return "OpenAI key missing — cannot generate summary."
@@ -172,6 +211,9 @@ def growlio_page():
     # Detailed Analysis per Stock
     # --------------------
     st.subheader("🔍 Detailed Analysis per Stock")
+    # Optional: refresh latest news and update Google Sheet
+if st.button("🔄 Refresh News for All Tickers"):
+    update_google_sheet_with_news(sheet_key, tickers)
 
     for ticker in tickers:
         st.markdown(f"## {ticker}")
