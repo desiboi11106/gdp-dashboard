@@ -16,6 +16,8 @@ import seaborn as sns
 import sqlite3
 from datetime import datetime as dt, timedelta
 import io
+import requests
+from bs4 import BeautifulSoup
 
 # --------------------
 # App Setup
@@ -49,25 +51,38 @@ def load_data(tickers, start, end):
         st.error(f"Error loading data: {e}")
         return None
 
-def fetch_news_from_sheet_by_key(sheet_key, ticker):
+def fetch_news_auto(ticker):
+    """Fetch the latest stock news automatically from Google News."""
     try:
-        creds = Credentials.from_service_account_info(
-            st.secrets["gcp_service_account"],
-            scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"],
-        )
-        gclient = gspread.authorize(creds)
-        sheet = gclient.open_by_key(sheet_key)
-        worksheet = sheet.sheet1
-        data = worksheet.get_all_records()
-        df = pd.DataFrame(data)
-        if df.empty or 'ticker' not in df.columns:
-            return []
-        df = df[df['ticker'].astype(str).str.upper() == ticker.upper()]
-        return df.to_dict('records')
-    except Exception as e:
-        st.warning(f"Error fetching sheet data: {e}")
-        return []
+        query = f"{ticker} stock"
+        url = f"https://news.google.com/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers)
 
+        if response.status_code != 200:
+            st.warning(f"⚠️ Couldn't fetch news for {ticker}.")
+            return []
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        articles = soup.select("article")
+
+        news_list = []
+        for article in articles[:8]:  # limit to 8 headlines
+            title_tag = article.select_one("h3")
+            if not title_tag:
+                continue
+            title = title_tag.text.strip()
+            link = title_tag.a["href"]
+            if link.startswith("./"):
+                link = "https://news.google.com" + link[1:]
+            date_tag = article.find("time")
+            date = date_tag["datetime"] if date_tag else "Unknown date"
+            news_list.append({"title": title, "url": link, "date": date})
+
+        return news_list
+    except Exception as e:
+        st.warning(f"Error fetching news: {e}")
+        return []
 def openai_summary_from_headlines(ticker, headlines, model="gpt-4o-mini"):
     if client is None:
         return "OpenAI key missing — cannot generate summary."
@@ -194,7 +209,7 @@ def growlio_page():
             st.subheader(f"📰 {ticker} News & Insights (From Google Sheet)")
             articles = []
             if sheet_key and has_gcp:
-                articles = fetch_news_from_sheet_by_key(sheet_key, ticker)
+                articles = fetch_news_auto(ticker)
             elif sheet_key and not has_gcp:
                 st.info("Google credentials missing in secrets; cannot fetch private sheet.")
             else:
