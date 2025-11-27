@@ -1,15 +1,20 @@
 streamlit
-yfinance
+openai
+requests
 pandas
 numpy
 plotly
+yfinance
+python-dotenv
+beautifulsoup4
+lxml
 matplotlib
-seaborn
-openai
-gspread
+altair
+firebase-admin
 google-auth
 google-auth-oauthlib
 google-auth-httplib2
-xlsxwriter
-feedparser
+PyJWT
+pydantic
+tenacity
 
