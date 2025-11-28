@@ -1,4 +1,6 @@
 import streamlit as st
+st.write("Theme loaded:", st.config.get_option("theme.primaryColor"))
+import streamlit as st
 import yfinance as yf
 import pandas as pd
 import datetime
