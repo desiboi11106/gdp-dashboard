@@ -645,62 +645,22 @@ else:
 st.markdown("""
 <style>
 
-/* ------- MAIN BACKGROUND ------- */
-.stApp {
-    background-color: #0d0d0d !important;   /* deep black */
-}
-
-/* ------- SIDEBAR ------- */
-[data-testid="stSidebar"] {
-    background-color: #121212 !important;
-    border-right: 1px solid #222 !important;
-}
-
-/* ------- HEADERS ------- */
-h1, h2, h3, h4, h5, h6 {
-    color: #00FF9D !important;     /* neon green */
-    font-weight: 700 !important;
-}
-
-/* ------- METRIC CARDS ------- */
-div[data-testid="metric-container"] {
-    background-color: #1a1a1a !important;
-    border: 1px solid #333 !important;
-    border-radius: 14px !important;
-    padding: 15px !important;
-}
-
-/* Metric label text */
-div[data-testid="metric-container"] > label {
-    color: #e3e3e3 !important;
-}
-
-/* Metric value */
-div[data-testid="metric-container"] > div {
-    color: white !important;
-    font-size: 32px !important;
-    font-weight: 800 !important;
-}
-
 /* ------- RADIO OPTIONS ------- */
 .stRadio > div {
-    color: white !important;
-}
-
-/* ------- INPUT BOXES ------- */
-.stTextInput > div > div > input {
-    background-color: #1c1c1c !important;
-    color: white !important;
+    background-color: #1a1a1a !important;
+    padding: 8px 12px !important;
     border-radius: 10px !important;
-    border: 1px solid #333 !important;
 }
 
-/* ------- BUTTONS ------- */
-.stButton > button {
-    background-color: #00FF9D !important;
-    color: black !important;
-    border-radius: 12px !important;
-    font-weight: 700 !important;
+.stRadio label {
+    color: #e3e3e3 !important;
+    font-weight: 600 !important;
+}
+
+.stRadio div[role='radiogroup'] > label > div {
+    background-color: #00FF9D10 !important;
+    border: 1px solid #00FF9D !important;
+    color: white !important;
 }
 
 </style>
